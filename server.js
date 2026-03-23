@@ -1,51 +1,30 @@
-const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
-const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js")
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 const API_Base = "http://host.docker.internal:3000";
 
-const server = new Server(
-    { name: "todo-mcp", version: "1.0.0" },
-    { capabilities: { tools: {} } }
-);
+const server = new McpServer({
+    name: "todo-mcp",
+    version: "1.0.0",
+    capabilities: {
+        tools: {}
+    }
+});
 
 //ツール一覧
-server.setRequestHandler("tools/list", async () => ({
-    tools: [
-        {
-            name: "add_todo",
-            desctiption: "Add a todo",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    title: { type: "string" }
-                },
-                required: ["title"]
-            }
-        },
-        {
-            name: "list_todos",
-            desctiption: "List todos",
-            inputSchema: { type: "object", properties: {} }
-        },
-        {
-            name: "delete_todo",
-            desctiption: "Delete a todo",
-            inputSchema: {
-                type: "object",
-                properties: {
-                    id: { type: "number" }
-                },
-                required: ["id"]
-            }
+server.registerTool(
+    "add_todo",
+    {
+        desctiption: "Add a todo",
+        inputSchema: {
+            type: "object",
+            properties: {
+                title: { type: "string" }
+            },
+            required: ["title"]
         }
-    ]
-}));
-
-//実行
-server.setRequestHandler("tools/call", async (req) => {
-    const { name, arguments: args } = req.params;
-
-    if (name === "add_todo") {
+    },
+    async ({ title }) => {
         const res = await fetch(`${API_BASE}/todos`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -53,13 +32,33 @@ server.setRequestHandler("tools/call", async (req) => {
         });
         return { content: [{ type: "text", text: JSON.stringify(await res.json()) }] };
     }
+);
 
-    if (name === "list_todos") {
+server.registerTool(
+    "list_todos",
+    {
+        desctiption: "List todos",
+        inputSchema: { type: "object", properties: {} }
+    },
+    async () => {
         const res = await fetch(`${API_BASE}/todos`);
         return { content: [{ type: "text", text: JSON.stringify(await res.json()) }] };
     }
+);
 
-    if (name === "delete_todo") {
+server.registerTool(
+    "delete_todo",
+    {
+        desctiption: "Delete a todo",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: { type: "number" }
+            },
+            required: ["id"]
+        }
+    },
+    async ({ id }) => {
         if (args.id === 0) {
             return { content: [{ type: "text", text: JSON.stringify(await res.json()) }] };
         }
@@ -69,9 +68,7 @@ server.setRequestHandler("tools/call", async (req) => {
         });
         return { content: [{ type: "text", text: JSON.stringify(await res.json()) }] };
     }
-
-    throw new Error("Unknown tool");
-});
+);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
